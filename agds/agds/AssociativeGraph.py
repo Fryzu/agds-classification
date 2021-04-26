@@ -5,7 +5,7 @@ from IPython.display import Image, display
 
 class AssociativeGraph(pgv.AGraph):
 
-    def __init__(self, data_frame, *args):
+    def __init__(self, data_frame, primary_key="id", *args):
         """
         Crates Associative Graph from dataframe table
         """
@@ -13,8 +13,9 @@ class AssociativeGraph(pgv.AGraph):
             strict=False, directed=False, *args)
         self.graph_attr['rankdir'] = 'LR'
         self.node_attr['shape'] = 'Mrecord'
+        self.associative_transformation(data_frame, primary_key)
 
-    def associative_transformation(data_frame):
+    def associative_transformation(self, data_frame, pk):
         """
         Transformates the data_frame into the AGDS
         """
