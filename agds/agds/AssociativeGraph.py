@@ -6,8 +6,13 @@ from .utils import previous_current_next
 
 class AssociativeGraph(pgv.AGraph):
 
-    # Used in order to tell apart attributes from other nodes
-    _attributes_ids = dict()
+    # Used in order to tell apart attributes from other nodes,
+    # id:class dict
+    _attributes = dict()
+    # class:max_value dict
+    _max_values = dict()
+    # class:min_value dict
+    _min_values = dict()
 
     @classmethod
     def get_hash(cls, attribute_name, attribute_value):
@@ -37,12 +42,16 @@ class AssociativeGraph(pgv.AGraph):
         for column_name in column_names:
             column = list(data_frame[column_name])
             column.sort()
+
+            self._max_values[column_name] = column[-1]
+            self._min_values[column_name] = column[0]
+
             for prev_item, attribute, next_item in previous_current_next(column):
                 prev_id = AssociativeGraph.get_hash(column_name, prev_item)
                 node_id = AssociativeGraph.get_hash(column_name, attribute)
                 next_id = AssociativeGraph.get_hash(column_name, next_item)
 
-                self._attributes_ids[str(node_id)] = column_name
+                self._attributes[str(node_id)] = column_name
 
                 self.add_node(node_id, label=attribute)
                 if not self.has_edge(column_name, node_id):
@@ -70,8 +79,25 @@ class AssociativeGraph(pgv.AGraph):
         self.draw('tmp.png', prog='dot')
         display(Image('tmp.png'))
 
+    def get_attribute_weight(self, node_a, node_b):
+        try:
+            class_name = self._attributes[node_a]
+            v_a_max = float(self._max_values[class_name])
+            v_a_min = float(self._min_values[class_name])
+            r = v_a_max - v_a_min
+            v_a = float(self.get_node(node_a).attr["label"])
+            v_b = float(self.get_node(node_b).attr["label"])
+            weight = 1 - abs(v_a-v_b)/r
+            return weight
+        except:
+            return 0.5
+
     def get_weight(self, node_a, node_b):
-        return 1
+        if (node_a in self._attributes and node_b in self._attributes):
+            return self.get_attribute_weight(node_a, node_b)
+        else:
+            neighbors = len(self.neighbors(node_b))
+            return 1/neighbors
 
     def inference(self, strat_node):
         """
@@ -92,9 +118,9 @@ class AssociativeGraph(pgv.AGraph):
 
         parsed_dict = dict()
         for k, v in weights_dict.items():
-            if k in self._attributes_ids:
+            if k in self._attributes:
                 key = "{}:{}".format(
-                    self._attributes_ids[k], self.get_node(k).attr["label"])
+                    self._attributes[k], self.get_node(k).attr["label"])
                 parsed_dict[key] = v
             else:
                 parsed_dict[k] = v
