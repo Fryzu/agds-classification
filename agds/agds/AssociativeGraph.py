@@ -1,16 +1,24 @@
 import pandas as pd
 import pygraphviz as pgv
 from IPython.display import Image, display
+from .utils import previous_current_next
 
 
 class AssociativeGraph(pgv.AGraph):
+
+    # Used in order to tell apart attributes from other nodes
+    _attributes = []
+
+    @classmethod
+    def get_hash(cls, attribute_name, attribute_value):
+        return hash("{attribute_name}_{attribute_value}".format(attribute_value=attribute_value, attribute_name=attribute_name))
 
     def __init__(self, data_frame, primary_key="id", *args):
         """
         Crates Associative Graph from dataframe table
         """
         super(AssociativeGraph, self).__init__(
-            strict=False, directed=False, *args)
+            strict=False, directed=False, spline="curved", * args)
         self.graph_attr['rankdir'] = 'LR'
         self.node_attr['shape'] = 'Mrecord'
         self.associative_transformation(data_frame, primary_key)
@@ -19,7 +27,44 @@ class AssociativeGraph(pgv.AGraph):
         """
         Transformates the data_frame into the AGDS
         """
-        pass
+        column_names = [x for x in data_frame.columns if x != "id"]
+
+        self.add_node("param")
+        for column in column_names:
+            self.add_node(column)
+            self.add_edge("param", column)
+
+        for column_name in column_names:
+            column = list(data_frame[column_name])
+            column.sort()
+            for prev_item, attribute, next_item in previous_current_next(column):
+                prev_id = AssociativeGraph.get_hash(column_name, prev_item)
+                node_id = AssociativeGraph.get_hash(column_name, attribute)
+                next_id = AssociativeGraph.get_hash(column_name, next_item)
+
+                self._attributes.append(node_id)
+
+                self.add_node(node_id, label=attribute)
+                if not self.has_edge(column_name, node_id):
+                    self.add_edge(column_name, node_id)
+                if prev_item and not self.has_edge(prev_id, node_id) and prev_item != attribute:
+                    weight = 2
+                    self.add_edge(prev_id, node_id,
+                                  weight=weight, constraint=False)
+                if next_item and not self.has_edge(node_id, next_id) and next_item != attribute:
+                    weight = 2
+                    self.add_edge(node_id, next_id,
+                                  weight=weight, constraint=False)
+
+        rows = data_frame.to_dict(orient='records')
+
+        for row in rows:
+            entity_id = row["id"]
+            self.add_node(entity_id)
+            for column_name, attribute in row.items():
+                if column_name != "id":
+                    node_id = AssociativeGraph.get_hash(column_name, attribute)
+                    self.add_edge(node_id, entity_id)
 
     def render_graph(self):
         self.draw('tmp.png', prog='dot')
@@ -33,6 +78,6 @@ if __name__ == "__main__":
             'Petal length': [4.5, 4.7, 5.1, 5.0, 5.0, 4.8, 4.8, 5.0, 5.1],
             'Petal width': [1.5, 1.6, 1.6, 1.7, 1.5, 1.8, 1.8, 2.0, 2.0],
             'Class': ['Versicolor', 'Versicolor', 'Versicolor', 'Versicolor', "Viriginica", 'Versicolor', "Viriginica", "Viriginica", "Viriginica"]}
-    input_table = pd.DataFrame(data)
-    graph = AssociativeGraph(input_table)
-    input_table.head()
+    data_frame = pd.DataFrame(data)
+    graph = AssociativeGraph(data_frame)
+    data_frame.head()
