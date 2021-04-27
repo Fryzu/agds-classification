@@ -7,7 +7,7 @@ from .utils import previous_current_next
 class AssociativeGraph(pgv.AGraph):
 
     # Used in order to tell apart attributes from other nodes
-    _attributes = []
+    _attributes_ids = dict()
 
     @classmethod
     def get_hash(cls, attribute_name, attribute_value):
@@ -42,7 +42,7 @@ class AssociativeGraph(pgv.AGraph):
                 node_id = AssociativeGraph.get_hash(column_name, attribute)
                 next_id = AssociativeGraph.get_hash(column_name, next_item)
 
-                self._attributes.append(node_id)
+                self._attributes_ids[str(node_id)] = column_name
 
                 self.add_node(node_id, label=attribute)
                 if not self.has_edge(column_name, node_id):
@@ -69,6 +69,37 @@ class AssociativeGraph(pgv.AGraph):
     def render_graph(self):
         self.draw('tmp.png', prog='dot')
         display(Image('tmp.png'))
+
+    def get_weight(self, node_a, node_b):
+        return 1
+
+    def inference(self, strat_node):
+        """
+        Returns inference starting from node with id start_node
+        """
+        weights_dict = dict()
+        weights_dict[strat_node] = 1
+        bfs_queue = [strat_node]
+
+        while bfs_queue:
+            current_node = bfs_queue.pop()
+            neighbors = [i for i in self.neighbors(
+                current_node) if i not in weights_dict]
+            for node in neighbors:
+                bfs_queue.insert(0, node)
+                weights_dict[node] = weights_dict[current_node] * \
+                    self.get_weight(current_node, node)
+
+        parsed_dict = dict()
+        for k, v in weights_dict.items():
+            if k in self._attributes_ids:
+                key = "{}:{}".format(
+                    self._attributes_ids[k], self.get_node(k).attr["label"])
+                parsed_dict[key] = v
+            else:
+                parsed_dict[k] = v
+
+        return parsed_dict
 
 
 if __name__ == "__main__":
