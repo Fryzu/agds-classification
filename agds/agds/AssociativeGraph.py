@@ -2,6 +2,9 @@ import pandas as pd
 import pygraphviz as pgv
 from IPython.display import Image, display
 from .utils import previous_current_next
+from functools import reduce
+import statusbar
+import tqdm
 
 
 class AssociativeGraph(pgv.AGraph):
@@ -126,6 +129,34 @@ class AssociativeGraph(pgv.AGraph):
                 parsed_dict[k] = v
 
         return parsed_dict
+
+    def classify(self, input_nodes):
+        """
+        input_nodes is a dictionary of classified params {param: value}
+        """
+        node_keys = [self.get_hash(k, v) for k, v in input_nodes.items()]
+
+        node_inferences = []
+
+        for node in tqdm.tqdm(node_keys):
+            node_inferences.append(self.inference(node))
+
+        def sum_up(dict1, dict2):
+            keys = set(list(dict1.keys()) + list(dict2.keys()))
+            result = dict()
+            for key in keys:
+                if key in dict1 and key in dict2:
+                    result[key] = dict1[key] + dict2[key]
+                elif key in dict1:
+                    result[key] = dict1[key]
+                else:
+                    result[key] = dict2[key]
+
+            return result
+
+        result = reduce(sum_up, node_inferences, dict())
+
+        return {k: v for k, v in sorted(result.items(), key=lambda item: item[1])}
 
 
 if __name__ == "__main__":
